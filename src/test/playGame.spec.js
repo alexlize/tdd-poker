@@ -4,7 +4,11 @@ const handHighCard9 = ["2C", "3C", "4C", "5C", "9S"];
 const handHighCard7 = ["2D", "3D", "4D", "5D", "7C"];
 
 const handOnePairOf2 = ["2D", "2S", "4D", "5D", "7C"];
+const handOnePairOfA = ["AD", "AS", "4D", "5D", "7C"];
+
 const handTwoPairOf2And4 = ["2D", "2S", "4D", "4S", "7C"];
+
+const fourOfAKind = ["3D", "3S", "3C", "3H", "7C"];
 // const handHighCard7 = ["2D", "3D", "4D", "5D", "7C"];
 
 describe("High card", () => {
@@ -58,5 +62,21 @@ describe("Two Pair", () => {
 
   test("tie", () => {
     expect(playGame([handTwoPairOf2And4, handTwoPairOf2And4])).toBe("Tie.");
+  });
+
+  test("4ofAKind", () => {
+    expect(playGame([fourOfAKind, handTwoPairOf2And4])).toBe(
+      "Player 1 wins. - with Four of a kind"
+    );
+  });
+
+  test("4ofAKindBoth", () => {
+    expect(playGame([fourOfAKind, fourOfAKind])).toBe("Tie.");
+  });
+
+  test("Calculate method : hand 1 wins with high card", () => {
+    expect(playGame([handOnePairOfA, handHighCard7])).toBe(
+      "Player 1 wins. - with One Pair"
+    );
   });
 });

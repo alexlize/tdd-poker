@@ -1,10 +1,10 @@
 /**
- * returns {winner, handStrengthName}
+ * returns {winner, handStrengthName, winningCard}
  */
+
+import * as playGame from "./playGame";
+
 export const compareHand = (handA, handB) => {
-  console.log(
-    "---------------------------------------------------------------------------------------"
-  );
   const handAValues = handA.map(c => getCardValue(c));
   const handStrengthA = getHandStrength(handA);
   console.log(
@@ -24,13 +24,20 @@ export const compareHand = (handA, handB) => {
   let result = null;
   if (handStrengthA.strength !== handStrengthB.strength) {
     result = compare(handStrengthA.strength, handStrengthB.strength);
+    result.cardValue =
+      result.compared === 1
+        ? handStrengthA.calculator(handAValues)
+        : handStrengthB.calculator(handBValues);
+    console.log("CALCULATE :", result.cardValue);
   } else {
     result = handStrengthA.resolver(handAValues, handBValues);
   }
 
   return {
-    winner: result,
-    handStrengthName: result === 1 ? handStrengthA.name : handStrengthB.name
+    winner: result.compared,
+    handStrengthName:
+      result.compared === 1 ? handStrengthA.name : handStrengthB.name,
+    winningCard: cards[result.cardValue]
   };
 };
 
@@ -60,27 +67,46 @@ function comparePairs(handAValues, handBValues) {
     const filteredA = handAValues.filter(v => v !== highestAPairValue);
     const filteredB = handBValues.filter(v => v !== highestBPairValue);
 
-    return getWinnerKicker(filteredA, filteredB);
+    var a = getWinnerKicker(filteredA, filteredB);
+    return a;
   }
 
   return compare(highestAPairValue, highestBPairValue);
 }
 
 function getWinnerKicker(handAValues, handBValues) {
-  if (handAValues.length === 0) return 0;
-
   const maxA = Math.max(...handAValues);
   const maxB = Math.max(...handBValues);
+  if (handAValues.length === 0) {
+    return {
+      compared: 0,
+      cardValue: maxA
+    };
+  }
 
   if (maxA === maxB) {
     const filteredA = handAValues.filter(v => v !== maxA);
     const filteredB = handBValues.filter(v => v !== maxA);
-
+    if (filteredA.length === 0 && filteredB.length === 0) {
+      return {
+        compared: 0,
+        cardValue: maxA
+      };
+    }
     return getWinnerKicker(filteredA, filteredB);
   }
-  if (maxA < maxB) return -1;
 
-  return 1;
+  if (maxA < maxB) {
+    return {
+      compared: -1,
+      cardValue: maxB
+    };
+  }
+
+  return {
+    compared: 1,
+    cardValue: maxA
+  };
 }
 
 function getXofAKindValue(handValues, count) {
@@ -92,7 +118,7 @@ function getXofAKindValue(handValues, count) {
   const cardValueArray = [...handValuesFacet.entries()]
     .filter(([cardValue, n]) => n === count)
     .map(([cardValue, n]) => cardValue);
-
+  console.log("Array", count, handValuesFacet);
   return Math.max(...cardValueArray);
 }
 
@@ -152,16 +178,13 @@ function fullHouseExists(handValues) {
 
 function flushExists(hand) {
   const color = hand[0][1];
-  console.log("color is: ", color);
   return hand.every(card => card[1] === color);
 }
 
 function straightExists(handValues) {
   const sortedHandValuesDesc = handValues.sort((a, b) => b - a);
-  console.log("SORTED Descending :", sortedHandValuesDesc);
 
   if (sortedHandValuesDesc[0] === 12 && sortedHandValuesDesc.includes(2)) {
-    console.log("Special case");
     return (
       JSON.stringify(sortedHandValuesDesc) === JSON.stringify([12, 3, 2, 1, 0])
     );
@@ -186,30 +209,40 @@ function xOfAKindExists(handValues, x) {
     (a, b) => a.set(b, a.get(b) + 1 || 1),
     new Map()
   );
-
   return [...handValuesFacet.entries()].some(
     ([cardValue, count]) => count === x
   );
 }
 
 class HandStrength {
-  constructor(strength, name, resolver) {
+  constructor(strength, name, resolver, calculator) {
     this.strength = strength;
     this.name = name;
     this.resolver = resolver;
+    this.calculator = calculator;
   }
 }
 
 const handStrengths = [
-  new HandStrength(1, "High Card", getWinnerKicker),
-  new HandStrength(2, "One Pair", comparePairs),
-  new HandStrength(3, "Two Pairs", compareTwoPairs),
-  new HandStrength(4, "Three of a kind", compareThree),
-  new HandStrength(5, "Straight", compareStraights),
-  new HandStrength(6, "Flush", compareFlush),
-  new HandStrength(7, "Full House", compareFullHouse),
-  new HandStrength(8, "Four of a kind", compareFourOfAKind),
-  new HandStrength(9, "Straight Flush", compareStraightFlush)
+  new HandStrength(1, "High Card", getWinnerKicker, calculateHighcard),
+  new HandStrength(2, "One Pair", comparePairs, calculateOnePair),
+  new HandStrength(3, "Two Pairs", compareTwoPairs, calculateTwoPairs),
+  new HandStrength(4, "Three of a kind", compareThree, calculateThreeofAKind),
+  new HandStrength(5, "Straight", compareStraights, calculateStraights),
+  new HandStrength(6, "Flush", compareFlush, calculateFlush),
+  new HandStrength(7, "Full House", compareFullHouse, calculateFullHouse),
+  new HandStrength(
+    8,
+    "Four of a kind",
+    compareFourOfAKind,
+    calculateFourOfAKind
+  ),
+  new HandStrength(
+    9,
+    "Straight Flush",
+    compareStraightFlush,
+    calculateStraightFlush
+  )
 ];
 
 function compareStraightFlush(handAValues, handBValues) {
@@ -223,7 +256,11 @@ function compareFlush(handAValues, handBValues) {
 function compareFourOfAKind(handAValues, handBValues) {
   const highestAFourOfKindValue = getXofAKindValue(handAValues, 4);
   const highestBFourOfKindValue = getXofAKindValue(handBValues, 4);
-  return compare(highestAFourOfKindValue, highestBFourOfKindValue);
+  let compared = compare(highestAFourOfKindValue, highestBFourOfKindValue);
+  console.log("highestAFourOfKindValue", highestAFourOfKindValue);
+  console.log("highestBFourOfKindValue", highestBFourOfKindValue);
+  console.log(compared.cardValue);
+  return compared;
 }
 
 function compareFullHouse(handAValues, handBValues) {
@@ -249,7 +286,6 @@ function compareStraights(handAValues, handBValues) {
 
 function staightenMeUp(handValues) {
   const sortedHandValuesDesc = handValues.sort((a, b) => b - a);
-  console.log("SORTED Descending  :", sortedHandValuesDesc);
 
   if (sortedHandValuesDesc[0] === 12 && sortedHandValuesDesc.includes(2)) {
     sortedHandValuesDesc[0] = -1;
@@ -264,7 +300,54 @@ function getCardValue(card) {
 }
 
 function compare(a, b) {
-  if (a > b) return 1;
-  if (a < b) return -1;
-  return 0;
+  if (a > b)
+    return {
+      compared: 1,
+      cardValue: a
+    };
+  if (a < b)
+    return {
+      compared: -1,
+      cardValue: b
+    };
+  return {
+    compared: 0,
+    cardValue: a
+  };
+}
+
+function calculateHighcard(handValue) {
+  return Math.max(...handValue);
+}
+
+function calculateOnePair(handValue) {
+  return Math.max(...handValue);
+}
+
+function calculateTwoPairs(handValue) {
+  return Math.max(...handValue);
+}
+
+function calculateThreeofAKind(handValue) {
+  return Math.max(...handValue);
+}
+
+function calculateStraights(handValue) {
+  return Math.max(...handValue);
+}
+
+function calculateStraightFlush(handValue) {
+  return Math.max(...handValue);
+}
+
+function calculateFourOfAKind(handValue) {
+  return Math.max(...handValue);
+}
+
+function calculateFullHouse(handValue) {
+  return Math.max(...handValue);
+}
+
+function calculateFlush(handValue) {
+  return Math.max(...handValue);
 }
